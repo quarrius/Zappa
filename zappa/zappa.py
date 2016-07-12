@@ -259,6 +259,7 @@ class Zappa(object):
                 print("Zappa requires an active virtual environment.")
                 quit()
 
+        cwd = os.getcwd()
         zip_path = self.mktempfile(suffix='.zip')
 
         # Files that should be excluded from the zip
