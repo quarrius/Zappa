@@ -286,7 +286,7 @@ class Zappa(object):
             print("Warning! Your project and virtualenv have the same name! You may want to re-create your venv with a new name, or explicitly define a 'project_name', as this may cause errors.")
 
         # First, do the project..
-        temp_project_path = self.mktempdir()
+        temp_project_path = self.mktempdir(delete=True)
 
         if minify:
             excludes = ZIP_EXCLUDES + exclude + [split_venv[-1]]
@@ -296,7 +296,7 @@ class Zappa(object):
 
         # Then, do the site-packages..
         # TODO Windows: %VIRTUAL_ENV%\Lib\site-packages
-        temp_package_path = self.mktempdir()
+        temp_package_path = self.mktempdir(delete=True)
         site_packages = os.path.join(venv, 'lib', 'python2.7', 'site-packages')
         if minify:
             excludes = ZIP_EXCLUDES + exclude
@@ -1103,8 +1103,11 @@ class Zappa(object):
             num /= 1024.0
         return "{0:.1f}{1!s}{2!s}".format(num, 'Yi', suffix)
 
-    def mktempdir(self):
-        return tempfile.mkdtemp(prefix='zappa-tmp-')
+    def mktempdir(self, delete=False):
+        dirname = tempfile.mkdtemp(prefix='zappa-tmp-')
+        if delete:
+            os.rmdir(dirname)
+        return dirname
 
     def mktempfile(self, suffix=''):
         with tempfile.NamedTemporaryFile(suffix=suffix,
