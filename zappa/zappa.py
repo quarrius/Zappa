@@ -259,9 +259,7 @@ class Zappa(object):
                 print("Zappa requires an active virtual environment.")
                 quit()
 
-        cwd = os.getcwd()
-        zip_fname = prefix + '-' + str(int(time.time())) + '.zip'
-        zip_path = os.path.join(cwd, zip_fname)
+        zip_path = self.mktempfile(suffix='.zip')
 
         # Files that should be excluded from the zip
         if exclude is None:
@@ -287,7 +285,7 @@ class Zappa(object):
             print("Warning! Your project and virtualenv have the same name! You may want to re-create your venv with a new name, or explicitly define a 'project_name', as this may cause errors.")
 
         # First, do the project..
-        temp_project_path = os.path.join(tempfile.gettempdir(), str(int(time.time())))
+        temp_project_path = self.mktempdir()
 
         if minify:
             excludes = ZIP_EXCLUDES + exclude + [split_venv[-1]]
@@ -297,7 +295,7 @@ class Zappa(object):
 
         # Then, do the site-packages..
         # TODO Windows: %VIRTUAL_ENV%\Lib\site-packages
-        temp_package_path = os.path.join(tempfile.gettempdir(), str(int(time.time() + 1)))
+        temp_package_path = self.mktempdir()
         site_packages = os.path.join(venv, 'lib', 'python2.7', 'site-packages')
         if minify:
             excludes = ZIP_EXCLUDES + exclude
@@ -379,16 +377,18 @@ class Zappa(object):
         if file_stats.st_size > 52428800: # pragma: no cover
             print("\n\nWarning: Application zip package is likely to be too large for AWS Lambda.\n\n")
 
-        return zip_fname
+        return zip_path
 
     ##
     # S3
     ##
 
-    def upload_to_s3(self, source_path, bucket_name):
+    def upload_to_s3(self, source_path, bucket_name, dest_path=None):
         """
         Given a file, upload it to S3.
         Credentials should be stored in environment variables or ~/.aws/credentials (%USERPROFILE%\.aws\credentials on Windows).
+        dest_path defaults to basename(source_path)
+
 
         Returns True on success, false on failure.
 
@@ -406,7 +406,9 @@ class Zappa(object):
             print("Problem with source file {}".format(source_path))
             return False
 
-        dest_path = os.path.split(source_path)[1]
+        if dest_path is None:
+            dest_path = os.path.basename(source_path)
+
         try:
             source_size = os.stat(source_path).st_size
             print("Uploading zip (" + str(self.human_size(source_size)) + ")...")
@@ -435,6 +437,7 @@ class Zappa(object):
     def remove_from_s3(self, file_name, bucket_name):
         """
         Given a file name and a bucket, remove it from S3.
+        file_name is converted to an object key with basename(file_name)
 
         There's no reason to keep the file hosted on S3 once its been made into a Lambda function, so we can delete it from S3.
 
@@ -452,7 +455,7 @@ class Zappa(object):
             if error_code == 404:
                 return False
 
-        delete_keys = {'Objects': [{'Key': file_name}]}
+        delete_keys = {'Objects': [{'Key': os.path.basename(file_name)}]}
         response = bucket.delete_objects(Delete=delete_keys)
         if response['ResponseMetadata']['HTTPStatusCode'] == 200:
             return True
@@ -466,6 +469,7 @@ class Zappa(object):
         """
         Given a bucket and key of a valid Lambda-zip, a function name and a handler, register that Lambda function.
 
+        s3_key is converted to basename(s3_key)
         """
 
         if not vpc_config:
@@ -478,7 +482,7 @@ class Zappa(object):
             Handler=handler,
             Code={
                 'S3Bucket': bucket,
-                'S3Key': s3_key,
+                'S3Key': os.path.basename(s3_key),
             },
             Description=description,
             Timeout=timeout,
@@ -493,6 +497,7 @@ class Zappa(object):
         """
         Given a bucket and key of a valid Lambda-zip, a function name and a handler, update that Lambda function's code.
 
+        s3_key is converted to basename(s3_key)
         """
 
         print("Updating Lambda function..")
@@ -500,7 +505,7 @@ class Zappa(object):
         response = self.lambda_client.update_function_code(
             FunctionName=function_name,
             S3Bucket=bucket,
-            S3Key=s3_key,
+            S3Key=os.path.basename(s3_key),
             Publish=publish
         )
 
@@ -1096,3 +1101,11 @@ class Zappa(object):
                 return "{0:3.1f}{1!s}{2!s}".format(num, unit, suffix)
             num /= 1024.0
         return "{0:.1f}{1!s}{2!s}".format(num, 'Yi', suffix)
+
+    def mktempdir(self):
+        return tempfile.mkdtemp(prefix='zappa-tmp-')
+
+    def mktempfile(self, suffix=''):
+        with tempfile.NamedTemporaryFile(suffix=suffix,
+                prefix='zappa-tmp-', delete=False) as tmpfile:
+            return tmpfile.name
