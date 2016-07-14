@@ -303,17 +303,20 @@ class Zappa(object):
             shutil.copytree(site_packages, temp_package_path, symlinks=False, ignore=shutil.ignore_patterns(*excludes))
         else:
             shutil.copytree(site_packages, temp_package_path, symlinks=False)
+        copy_tree(temp_package_path, temp_project_path, update=True)
+        shutil.rmtree(temp_package_path)
 
         # We may have 64-bin specific packages too.
         site_packages_64 = os.path.join(venv, 'lib64', 'python2.7', 'site-packages')
         if os.path.exists(site_packages_64):
+            temp_package_64_path = self.mktempdir(delete=True)
             if minify:
                 excludes = ZIP_EXCLUDES + exclude
-                shutil.copytree(site_packages_64, temp_package_path, symlinks=False, ignore=shutil.ignore_patterns(*excludes))
+                shutil.copytree(site_packages_64, temp_package_64_path, symlinks=False, ignore=shutil.ignore_patterns(*excludes))
             else:
-                shutil.copytree(site_packages_64, temp_package_path, symlinks=False)
-
-        copy_tree(temp_package_path, temp_project_path, update=True)
+                shutil.copytree(site_packages_64, temp_package_64_path, symlinks=False)
+            copy_tree(temp_package_64_path, temp_project_path, update=True)
+            shutil.rmtree(temp_package_64_path)
 
         # Then the pre-compiled packages..
         if use_precompiled_packages:
@@ -371,7 +374,6 @@ class Zappa(object):
 
         # Trash the temp directory
         shutil.rmtree(temp_project_path)
-        shutil.rmtree(temp_package_path)
 
         # Warn if this is too large for Lambda.
         file_stats = os.stat(zip_path)
