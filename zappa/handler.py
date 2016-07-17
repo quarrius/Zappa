@@ -234,7 +234,10 @@ class LambdaHandler(object):
                 raise e
 
             # Print the error to the browser upon failure?
-            debug = bool(getattr(app_module, settings.DEBUG, True))
+            try:
+                debug = bool(getattr(app_module, settings.DEBUG, True))
+            except AttributeError:
+                debug = False
             if debug:
                 # Return this unspecified exception as a 500.
                 content = "<!DOCTYPE html>500. From Zappa: <pre>" + str(e) + "</pre><br /><pre>" + traceback.format_exc().replace('\n', '<br />') + "</pre>"
